@@ -7,6 +7,18 @@
     <title>Gestione Gelateria Cloud</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* Sostituisci o aggiungi questo nel blocco <style> */
+button:active {
+    transform: scale(0.92) !important; /* Si rimpicciolisce leggermente */
+    filter: brightness(0.8) !important; /* Si scurisce */
+    transition: transform 0.05s; /* Rende il movimento immediato */
+}
+
+/* Rimuove il fastidioso alone grigio di Safari quando tocchi */
+button {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; /* Impedisce di selezionare il testo mentre clicchi velocemente */
+}
     :root { 
         --primary: #4a90e2; 
         --success: #27ae60; 
@@ -106,7 +118,7 @@
  
     </style>
 </head>
-<body>
+<body ontouchstart="">
 
 <div class="container">
     <div class="card">
@@ -229,5 +241,5 @@
     }
     init();
 </script>
-</body>
+</body ontouchstart="">
 </html>
