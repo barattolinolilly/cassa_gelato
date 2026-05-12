@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Gelateria Cloud</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+    :root { 
+        --primary: #4a90e2; 
+        --success: #27ae60; 
+        --danger: #e74c3c; 
+        --dark: #2c3e50; 
+        --bg: #f0f2f5;
+    }
+
+    body { 
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+        background-color: var(--bg); 
+        color: var(--dark); 
+        margin: 0; 
+        padding: 15px; 
+    }
+
+    .container { max-width: 1000px; margin: auto; }
+
+    .card { 
+        background: white; 
+        padding: 20px; 
+        border-radius: 15px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+        margin-bottom: 20px; 
+    }
+
+    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; color: var(--primary); margin-top: 0; }
+
+    /* GRIGLIA OTTIMIZZATA PER IPAD */
+    .grid-buttons { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+        gap: 15px; 
+    }
+
+    /* CONTENITORE GUSTO */
+    .btn-group { 
+        display: flex; 
+        flex-direction: column; 
+        background: #fff; 
+        padding: 12px; 
+        border-radius: 12px; 
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        align-items: center;
+    }
+
+    .btn-group span { 
+        font-weight: bold; 
+        margin-bottom: 10px; 
+        color: var(--dark);
+        font-size: 1.1rem;
+    }
+
+    /* PULSANTI GRANDI E VISIBILI */
+    button { 
+        width: 100%;
+        padding: 15px 5px; 
+        cursor: pointer; 
+        border: none; 
+        border-radius: 8px; 
+        font-weight: bold; 
+        margin-bottom: 8px; /* Spazio tra Piccolo e Grande */
+        transition: transform 0.1s, filter 0.1s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-p { background-color: #d1ecf1; color: #0c5460; }
+    .btn-g { background-color: #fff3cd; color: #856404; margin-bottom: 0; }
+
+    /* EFFETTO PRESSIONE */
+    button:active {
+        transform: scale(0.95);
+        filter: brightness(0.9);
+    }
+
+    #areaRiservata { display: none; margin-top: 30px; }
+    .total-banner { background: var(--success); color: white; padding: 20px; border-radius: 12px; text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 20px; }
+    
+    .stats-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+    
+    .btn-admin { 
+        background: #95a5a6; 
+        color: white; 
+        margin: 20px auto; 
+        display: block; 
+        width: auto; 
+        padding: 10px 20px; 
+    }
+
+    @media (max-width: 768px) { 
+        .stats-layout { grid-template-columns: 1fr; }
+        .grid-buttons { grid-template-columns: repeat(2, 1fr); } /* Forza 2 colonne su schermi piccoli */
+    }
+ 
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h2>🍦 Registro Vendite (Cloud Sync)</h2>
+        <div class="grid-buttons" id="pulsantiera"></div>
+    </div>
+
+    <button class="btn-admin" onclick="sbloccaAdmin()">🔑 Area Titolare (Totali Uniti)</button>
+
+    <div id="areaRiservata">
+        <div class="total-banner" id="displayTotale">Caricamento...</div>
+        <div class="stats-layout">
+            <div class="card">
+                <h2>📊 Report Locale (Questo iPad)</h2>
+                <table id="tabellaReport">
+                    <thead><tr><th>Gusto</th><th>Dim.</th><th>Q.tà</th><th>Tot.</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h2>📈 Popolarità Gusti</h2>
+                <canvas id="chartGusti"></canvas>
+            </div>
+        </div>
+        <p style="text-align:center; color: #666;">Nota: Per vedere i dati uniti di tutti gli iPad, controlla il tuo Foglio Google.</p>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURAZIONE
+    // ==========================================
+    const GUSTI = ["Crema", "Cioccolato", "Pistacchio", "Nocciola", "Panna", "Lampone", "Mango", "Limone"];
+    const PREZZI = { "Piccolo": 4.00, "Grande": 6.50 };
+    const PASSWORD_ADMIN = "Lilly"; 
+    
+    // INCOLLA QUI L'URL CHE HAI COPIATO DA GOOGLE (TRA LE VIRGOLETTE)
+    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycby14JgfsHeX2kgIaclasN-K6MCVRtJq_9jlFiyeu6IPrLS6CYijKOJfPm0yP_8-9ra5-w/exec"; 
+    // ==========================================
+
+    let vendite = JSON.parse(localStorage.getItem('gelato_cloud_v1')) || {};
+    let myChart = null;
+
+    function init() {
+        GUSTI.forEach(g => { if (!vendite[g]) vendite[g] = { "Piccolo": 0, "Grande": 0 }; });
+        render();
+    }
+
+    async function registra(gusto, formato) {
+        // 1. Salva localmente (per sicurezza se manca internet)
+        vendite[gusto][formato]++;
+        localStorage.setItem('gelato_cloud_v1', JSON.stringify(vendite));
+        render();
+
+        // 2. Invia al cloud (Google Sheets)
+        const dati = {
+            gusto: gusto,
+            formato: formato,
+            prezzo: PREZZI[formato]
+        };
+
+        try {
+            await fetch(URL_GOOGLE_SCRIPT, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(dati)
+            });
+            console.log("Sincronizzato con successo");
+        } catch (e) {
+            console.log("Errore sincronizzazione, salvato solo localmente");
+        }
+    }
+
+    function sbloccaAdmin() {
+        if (prompt("Password:") === PASSWORD_ADMIN) {
+            document.getElementById("areaRiservata").style.display = "block";
+            render();
+        }
+    }
+
+    function render() {
+        const pulsantiera = document.getElementById("pulsantiera");
+        const tbody = document.querySelector("#tabellaReport tbody");
+        if (pulsantiera.innerHTML === "") {
+            GUSTI.forEach(g => {
+                pulsantiera.innerHTML += `
+                    <div class="btn-group">
+                        <span>${g}</span>
+                        <button class="btn-p" onclick="registra('${g}', 'Piccolo')">Piccolo</button>
+                        <button class="btn-g" onclick="registra('${g}', 'Grande')">Grande</button>
+                    </div>`;
+            });
+        }
+        tbody.innerHTML = "";
+        let totale = 0;
+        let p = [], g = [];
+        GUSTI.forEach(gusto => {
+            p.push(vendite[gusto]["Piccolo"]);
+            g.push(vendite[gusto]["Grande"]);
+            ["Piccolo", "Grande"].forEach(f => {
+                let q = vendite[gusto][f];
+                let sub = q * PREZZI[f];
+                totale += sub;
+                if(q > 0) tbody.innerHTML += `<tr><td>${gusto}</td><td>${f[0]}</td><td>${q}</td><td>€${sub.toFixed(2)}</td></tr>`;
+            });
+        });
+        document.getElementById("displayTotale").innerText = "Incasso iPad: € " + totale.toFixed(2);
+        if(myChart) updateChart(p, g);
+        else if(document.getElementById("areaRiservata").style.display === "block") updateChart(p, g);
+    }
+
+    function updateChart(p, g) {
+        const ctx = document.getElementById('chartGusti').getContext('2d');
+        if (myChart) myChart.destroy();
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: GUSTI, datasets: [{label:'P', data:p, backgroundColor:'#4a90e2'},{label:'G', data:g, backgroundColor:'#f39c12'}] },
+            options: { responsive: true }
+        });
+    }
+    init();
+</script>
+</body>
+</html>
